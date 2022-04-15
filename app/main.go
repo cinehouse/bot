@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/cinehouse/bot/app/bot"
 	"github.com/cinehouse/bot/app/events"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/jessevdk/go-flags"
@@ -14,7 +15,8 @@ var opts struct {
 	Telegram struct {
 		Token string `long:"token" env:"TOKEN" description:"Telegram bot token"`
 	} `group:"telegram" namespace:"telegram" env-namespace:"TELEGRAM"`
-	Debug bool `long:"debug" description:"Show debug information"`
+	SysData string `long:"sys-data" env:"SYS_DATA" default:"data" description:"location of sys data"`
+	Debug   bool   `long:"debug" description:"Show debug information"`
 }
 
 func main() {
@@ -36,8 +38,17 @@ func main() {
 
 	log.Printf("Authorized on account %s", tgBot.Self.UserName)
 
+	multiBot := bot.MultiBot{}
+
+	if sb, err := bot.NewSys(opts.SysData); err == nil {
+		multiBot = append(multiBot, sb)
+	} else {
+		log.Printf("[ERROR] Failed to load sysbot, %v", err)
+	}
+
 	tgListener := events.TelegramListener{
 		BotAPI: tgBot,
+		Bots:   multiBot,
 	}
 
 	if err := tgListener.Do(ctx); err != nil {
