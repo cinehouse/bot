@@ -3,25 +3,34 @@ package events
 import (
 	"context"
 	"fmt"
-	"github.com/cinehouse/bot/app/bot"
+	"log"
+
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/pkg/errors"
-	"log"
+
+	"github.com/cinehouse/bot/app/bot"
 )
 
-//go:generate mockery --inpackage --name=BotAPI --case=snake --testonly
+//go:generate mockery --inpackage --name=TgBotAPI --case=snake
+//go:generate mockery --inpackage --name=MessageLogger --case=snake
 
 // TelegramListener listens to tg update, forward to bots and send back responses
 // Not thread safe
 type TelegramListener struct {
-	BotAPI BotAPI
-	Bots   bot.Interface
-	Debug  bool
+	TgBotAPI      TgBotAPI
+	MessageLogger MessageLogger
+	Bots          bot.Interface
+	SuperUsers    SuperUser
+	Debug         bool
 }
 
-type BotAPI interface {
+type TgBotAPI interface {
 	GetUpdatesChan(config tgbotapi.UpdateConfig) tgbotapi.UpdatesChannel
 	Send(c tgbotapi.Chattable) (tgbotapi.Message, error)
+}
+
+type MessageLogger interface {
+	Save(msg *bot.Message)
 }
 
 // Do process all events, blocked call
@@ -31,7 +40,7 @@ func (l *TelegramListener) Do(ctx context.Context) (err error) {
 	u := tgbotapi.NewUpdate(0)
 	u.Timeout = 60
 
-	updates := l.BotAPI.GetUpdatesChan(u)
+	updates := l.TgBotAPI.GetUpdatesChan(u)
 
 	for {
 		select {
@@ -56,6 +65,7 @@ func (l *TelegramListener) Do(ctx context.Context) (err error) {
 			log.Printf("[%s] %s", update.Message.From.UserName, update.Message.Text)
 
 			msg := l.transform(update.Message)
+			l.MessageLogger.Save(msg) // save an incoming update to report
 
 			log.Printf("[DEBUG] Incoming msg: %+v", msg)
 
@@ -79,12 +89,18 @@ func (l *TelegramListener) sendBotResponse(chatID int64, resp bot.Response) erro
 	msg.ParseMode = tgbotapi.ModeMarkdownV2
 	msg.DisableWebPagePreview = !resp.Preview
 
-	_, err := l.BotAPI.Send(msg)
+	res, err := l.TgBotAPI.Send(msg)
 	if err != nil {
 		return errors.Wrapf(err, "can't send message to telegram %q", resp.Text)
 	}
 
+	l.saveBotMessage(&res)
+
 	return nil
+}
+
+func (l *TelegramListener) saveBotMessage(msg *tgbotapi.Message) {
+	l.MessageLogger.Save(l.transform(msg))
 }
 
 func (l *TelegramListener) transform(msg *tgbotapi.Message) *bot.Message {
@@ -101,7 +117,8 @@ func (l *TelegramListener) transform(msg *tgbotapi.Message) *bot.Message {
 
 	if msg.From != nil {
 		message.From = bot.User{
-			ID: msg.From.ID,
+			ID:       msg.From.ID,
+			UserName: msg.From.UserName,
 		}
 	}
 

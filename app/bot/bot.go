@@ -33,7 +33,8 @@ type Chat struct {
 
 // User represents a user or bot.
 type User struct {
-	ID int64 `json:"id"`
+	ID       int64  `json:"id"`
+	UserName string `json:"username"`
 }
 
 // Response describes bot's answer on particular message
