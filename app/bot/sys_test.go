@@ -1,9 +1,10 @@
 package bot
 
 import (
+	"testing"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 func TestSys_OnMessage(t *testing.T) {

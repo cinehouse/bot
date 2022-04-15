@@ -1,5 +1,6 @@
 .DS_Store
 .idea/
+.run/
 
 # Output of the go coverage tool, specifically when used with LiteIDE
 *.out
@@ -7,3 +8,4 @@
 # app binary
 /app/app
 .env
+logs/
